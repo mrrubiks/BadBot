@@ -169,5 +169,9 @@ def foo(config):
             else:
                 print(f'Booking {config["sport"]} on {config["day"]} at {time} failed')
     print("Cancel your bookings here: https://reservation.frontdesksuite.ca/rcfs/cancel")
+    print("Done! Quitting in 5 seconds...")
+    t.sleep(5)
+    browser.quit()
+    input("Press Enter to exit...")
 
 foo(config)
