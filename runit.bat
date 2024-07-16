@@ -1,4 +1,4 @@
 python -m venv badbot
-.\badbot\bin\activate
+call .\badbot\Scripts\activate
 pip3 install -r requirements.txt
 python badbot.py
