@@ -4,22 +4,30 @@ from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.by import By
 import email
 import imaplib
+import os
+import json
 
 # Default values, change if needed
-url = "https://reservation.frontdesksuite.ca/rcfs/nepeansportsplex/Home/Index?Culture=en&PageId=b0d362a1-ba36-42ae-b1e0-feefaf43fe4c&ShouldStartReserveTimeFlow=False&ButtonId=00000000-0000-0000-0000-000000000000"
-phoneNum = "6470000000"
-emailAddr = "a@gmail.com"
-IMAPDomain = "imap.gmail.com"
-password = "a"
-name = "Nick Zhang"
+config = {
+    "url": "https://reservation.frontdesksuite.ca/rcfs/nepeansportsplex/Home/Index?Culture=en&PageId=b0d362a1-ba36-42ae-b1e0-feefaf43fe4c&ShouldStartReserveTimeFlow=False&ButtonId=00000000-0000-0000-0000-000000000000",
+    "phoneNum": "6470000000",
+    "emailAddr": "email@gmail.com",
+    "IMAPDomain": "imap.gmail.com",
+    "password": "psw",
+    "name": "Your Name in the Booking System",
+    "sport": "Badminton",
+    "day": "Wednesday",
+    "timeSlots": ["7:00 AM"],
+    "totalPeople": 2
+}
 
 browser = webdriver.Chrome(service=Service(ChromeDriverManager().install()))
 
-def readEmail(): 
+def readEmail(config): 
     #Read email and return verification code
     # Connect to the IMAP server
-    imap_server = imaplib.IMAP4_SSL(IMAPDomain)
-    imap_server.login(emailAddr, password)
+    imap_server = imaplib.IMAP4_SSL(config["IMAPDomain"])
+    imap_server.login(config["emailAddr"], config["password"])
 
     # Select the mailbox (e.g., INBOX)
     imap_server.select("INBOX")
@@ -55,24 +63,33 @@ def readEmail():
     verification_code = verification_code.strip()
     return verification_code
 
-def book(sport, day, time, phoneNumber, emailAddress, bookingName, people = 2):
-    browser.get(url)
+def book(config, time, people):
+    browser.get(config["url"])
     # First click on the sport
     try:
         elements = browser.find_elements(By.CLASS_NAME, "content")
         for element in elements:
-            if element.get_attribute("innerHTML") == sport:
+            if element.get_attribute("innerHTML") == config["sport"]:
                 element.click()
                 break
     except:
         print("No sport found in this Sportplex")
         return -1
+    #Some sportsplexes require you to select the number of people before selecting the sport
+    try: 
+        numPeople = browser.find_element(By.ID, "reservationCount")
+        numPeople.clear()
+        numPeople.send_keys(str(people))
+        submit = browser.find_element(By.ID, "submit-btn")
+        submit.click()
+    except:
+        people = 1
     #Fill in details
     #time select
     elements = browser.find_elements(By.CLASS_NAME, "header-text")
     for element in elements:
         text = element.get_attribute("innerHTML")
-        if day in text:
+        if config["day"] in text:
             element.click()
             elements = browser.find_elements(By.CLASS_NAME, "available-time")
             for element in elements:
@@ -82,17 +99,17 @@ def book(sport, day, time, phoneNumber, emailAddress, bookingName, people = 2):
                     parent.click()
                     #info page
                     phonenumber = browser.find_element(By.NAME, "PhoneNumber")
-                    phonenumber.send_keys(phoneNumber)
+                    phonenumber.send_keys(config["phoneNum"])
                     email = browser.find_element(By.NAME, "Email")
-                    email.send_keys(emailAddress)
+                    email.send_keys(config["emailAddr"])
                     name = browser.find_element(By.NAME, "field2021")
-                    name.send_keys(bookingName)
+                    name.send_keys(config["name"])
                     submit = browser.find_element(By.ID, "submit-btn")
                     submit.click()
                     # wait for the email to come in
                     verification = "fail"
                     while verification == "fail":
-                        verification = readEmail()
+                        verification = readEmail(config)
                     verificationBox = browser.find_element(By.ID, "code")
                     verificationBox.send_keys(str(verification))
                     submit = browser.find_element(By.CLASS_NAME, "mdc-button")
@@ -103,7 +120,7 @@ def book(sport, day, time, phoneNumber, emailAddress, bookingName, people = 2):
                     try:
                         confirmation_message = browser.find_element(By.CLASS_NAME, "main-content").find_element(By.CLASS_NAME,"section").find_element(By.TAG_NAME, "h1").get_attribute("innerHTML")
                         if confirmation_message == "Confirmation":
-                            return 1
+                            return people
                         else:
                             return -1
                     except:
@@ -113,30 +130,34 @@ def book(sport, day, time, phoneNumber, emailAddress, bookingName, people = 2):
 
 
 
-def foo():
-    while readEmail() != "fail":
+def foo(config):
+    # Check if config file exists, if is, read from it
+    config_file = "./config.json"  # Replace with the actual path to your config file
+    if os.path.isfile(config_file):
+        # Read from the config file
+        with open(config_file, "r") as file:
+            config = json.load(file)
+    else:
+        print("Config file not found, using default values!")
+    while readEmail(config) != "fail":
         print("Clearing emails...")
-    totalPeople = int(input("How many people are you booking for? Press Enter for default 2\n") or 2)
-    sport = input("What sport are you booking for? Press Enter for default (Badminton)\n") or "Badminton"
-    day = input("What day are you booking for? (Only book for one day at a time, put 1 for Monday, 2 for Tuesday, etc.) Press Enter for default (1)\n") or 1
-    day = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"][int(day) - 1]
-    timeSlots = input("How many time slots are you booking? Format: 6:00 PM,7:00 PM,8:00 PM, no spaces around comma\n").split(",")
-    print("Using default sportsplex, phone number, email address and name, change in code if needed")
-    print(f"Booking {totalPeople} people for {sport} on {day} at {timeSlots}")
+    print(f"Booking {config["totalPeople"]} people for {config["sport"]} on {config["day"]} at {config["timeSlots"]}")
+    totalPeople = config["totalPeople"]
     while totalPeople > 0:
         if totalPeople >= 2:
             numPeople = 2
         else:
             numPeople = 1
-        for time in timeSlots:
-            result = book(sport, day, time, phoneNum, emailAddr, name, numPeople)
+        for time in config["timeSlots"]:
+            result = book(config, time, numPeople)
             while(result == 0):
                 print("No slots available, trying again...")
-                result = book(sport, day, time, phoneNum, emailAddr, name, numPeople)
+                result = book(config, time, numPeople)
             if result > 0:
-                print(f'Booking {sport} on {day} at {time} for {numPeople} people was successful')
-                totalPeople -= numPeople
+                print(f'Booking {config["sport"]} on {config["day"]} at {time} for {result} people was successful')
+                totalPeople -= result
             else:
-                print(f'Booking {sport} on {day} at {time} failed')
+                print(f'Booking {config["sport"]} on {config["day"]} at {time} failed')
     print("Cancel your bookings here: https://reservation.frontdesksuite.ca/rcfs/cancel")
-foo()
+
+foo(config)
