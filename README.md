@@ -1,6 +1,5 @@
 # Usage
-1. Install Python3.12 https://www.python.org/downloads/
-2. Add python to your path https://realpython.com/add-python-to-path/
-3. Configure your gmail imap, maybe you need to set up an app password https://knowledge.workspace.google.com/kb/how-to-create-app-passwords-000009237
-4. Change the phone number, name, email and password variable in Batbot.py
-6. Download all the files, run runit.bat or runit.sh
+
+1. Configure your gmail imap, maybe you need to set up an app password https://knowledge.workspace.google.com/kb/how-to-create-app-passwords-000009237
+2. Change the phone number, name, email and password variable in Batbot.py
+3. Download all the files, run runit.bat or runit.sh
