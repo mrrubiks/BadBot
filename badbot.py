@@ -6,6 +6,7 @@ import email
 import imaplib
 import os
 import json
+import time as t
 
 # Default values, change if needed
 config = {
@@ -106,6 +107,15 @@ def book(config, time, people):
                     name.send_keys(config["name"])
                     submit = browser.find_element(By.ID, "submit-btn")
                     submit.click()
+                    try:
+                        # Retry if the submission fails
+                        while browser.find_element(By.CLASS_NAME, "field-validation-error").get_attribute("innerHTML") == "Retry":
+                            # Sleep for 500ms before retrying
+                            t.sleep(0.5)
+                            submit = browser.find_element(By.ID, "submit-btn")
+                            submit.click()
+                    except:
+                        pass
                     # wait for the email to come in
                     verification = "fail"
                     while verification == "fail":
