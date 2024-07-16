@@ -8,9 +8,9 @@ import imaplib
 # Default values, change if needed
 url = "https://reservation.frontdesksuite.ca/rcfs/nepeansportsplex/Home/Index?Culture=en&PageId=b0d362a1-ba36-42ae-b1e0-feefaf43fe4c&ShouldStartReserveTimeFlow=False&ButtonId=00000000-0000-0000-0000-000000000000"
 phoneNum = "6475677418"
-emailAddr = "nick.zhang418@gmail.com"
+emailAddr = "a@gmail.com"
 IMAPDomain = "imap.gmail.com"
-password = "dzmt lost bibs fyey"
+password = "a"
 name = "Nick Zhang"
 
 browser = webdriver.Chrome(service=Service(ChromeDriverManager().install()))
