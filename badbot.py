@@ -226,7 +226,7 @@ def foo(config):
             numPeople = min(totalPeople, totalPeoplePerSlot)
             for time in config["timeSlots"]:
                 booking_futures = [executor.submit(booking_worker, config, time, numPeople) for _ in range(numPeople//totalPeoplePerSlot)]
-                totalPeople -= numPeople
+            totalPeople -= numPeople
         # Submit the verification tasks to the executor
         booking_futures.append(executor.submit(verify_worker, config, numWorkers - 1))
         # Wait for all the booking tasks to complete
