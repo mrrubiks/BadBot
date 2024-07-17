@@ -1,12 +1,13 @@
 {
   "url": "https://reservation.frontdesksuite.ca/rcfs/nepeansportsplex/Home/Index?Culture=en&PageId=b0d362a1-ba36-42ae-b1e0-feefaf43fe4c&ShouldStartReserveTimeFlow=False&ButtonId=00000000-0000-0000-0000-000000000000",
-  "phoneNum": "6470000000",
-  "emailAddr": "email@gmail.com",
+  "phoneNum": "6475677418",
+  "emailAddr": "@gmail.com",
   "IMAPDomain": "imap.gmail.com",
-  "password": "psw",
-  "name": "Your Name in the Booking System",
+  "password": "",
+  "name": "",
   "sport": "Badminton",
-  "day": "Wednesday",
-  "timeSlots": ["7:00 AM", "8:00 AM", "9:00 AM"],
-  "totalPeople": 2
+  "day": "Friday",
+  "timeSlots": ["6:00 PM", "7:00 PM", "8:00 PM", "9:00 PM"],
+  "totalPeople": 4,
+  "runHeadless": false
 }
