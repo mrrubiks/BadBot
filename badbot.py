@@ -128,7 +128,7 @@ def book(config, time, people, browser):
                         t.sleep(1)
                     submit = browser.find_element(By.ID, "submit-btn")
                     submit.click()
-                    print("Confirm clicked")
+                    # print("Confirm clicked")
                     # Check if the booking is successful by checking if there is a confirmation message displayed
                     try:
                         confirmation_message = browser.find_element(By.CLASS_NAME, "main-content").find_element(By.CLASS_NAME,"section").find_element(By.TAG_NAME, "h1").get_attribute("innerHTML")
@@ -182,6 +182,7 @@ def booking_worker(config, time, people):
         print(f'Booking {config["sport"]} on {config["day"]} at {time} for {result} people was successful')
     else:
         print(f'Booking {config["sport"]} on {config["day"]} at {time} failed')
+    t.sleep(3)
     browser.quit()
     return result
 
