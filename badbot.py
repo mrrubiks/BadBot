@@ -34,7 +34,7 @@ def readEmail(config):
     imap_server.select("INBOX")
 
     # Search for emails with the subject containing the verification code and unread
-    result, data = imap_server.search(None, '(UNSEEN SUBJECT "Verify your email")')
+    result, data = imap_server.search(None, '(UNSEEN SUBJECT "Verify your email") FROM "noreply@frontdesksuite.com"')
     if result != "OK" or len(data[0]) == 0:
         return "fail"
     # Get the latest email
