@@ -233,7 +233,6 @@ def foo(config):
         concurrent.futures.wait(booking_futures)
 
     print("Cancel your bookings here: https://reservation.frontdesksuite.ca/rcfs/cancel")
-    t.sleep(5)
     input("All Booked. Press Enter to exit...")
 
 foo(config)
