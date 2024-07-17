@@ -7,7 +7,8 @@ import imaplib
 import os
 import json
 import time as t
-
+import concurrent.futures
+from concurrent.futures import ProcessPoolExecutor
 # Default values, change if needed
 config = {
     "url": "https://reservation.frontdesksuite.ca/rcfs/nepeansportsplex/Home/Index?Culture=en&PageId=b0d362a1-ba36-42ae-b1e0-feefaf43fe4c&ShouldStartReserveTimeFlow=False&ButtonId=00000000-0000-0000-0000-000000000000",
@@ -22,10 +23,8 @@ config = {
     "totalPeople": 2
 }
 
-browser = webdriver.Chrome(service=Service(ChromeDriverManager().install()))
-
 def readEmail(config): 
-    #Read email and return verification code
+    #Read email and return verification link
     # Connect to the IMAP server
     imap_server = imaplib.IMAP4_SSL(config["IMAPDomain"])
     imap_server.login(config["emailAddr"], config["password"])
@@ -46,25 +45,27 @@ def readEmail(config):
     raw_email = email_data[0][1]
     email_message = email.message_from_bytes(raw_email)
 
-    # Extract the verification code from the email body
-    # Extract the verification code from the email body
-    verification_code = None
-    if email_message.is_multipart():
-        for part in email_message.get_payload():
-            if part.get_content_type() == "text/plain":
-                verification_code = part.get_payload().strip().split(":")[1].split(".")[0]
-                break
-    else:
-        verification_code = email_message.get_payload().strip().split(":")[1].split(".")[0]
-
+    # Extract the verification link from the email
+    linkIdx = email_message.get_payload().strip().find('https://ca.fdesk.click')
+    if linkIdx == -1:
+        return "fail"
+    verificationLink = email_message.get_payload().strip()[linkIdx:]
     # Close the connection to the IMAP server
     imap_server.logout()
+    return verificationLink
 
-    # Strip any leading/trailing whitespaces
-    verification_code = verification_code.strip()
-    return verification_code
+def verifyEmail(verificationLink, browser):
+    browser.get(verificationLink)
+    try:
+        confirmMessage = browser.find_element(By.CLASS_NAME, "content").find_element(By.TAG_NAME,"label").get_attribute("innerHTML")
+        if confirmMessage.find("Your contact information has now been confirmed.") != -1:
+            return 1
+        else:
+            return 0
+    except:
+        return 0
 
-def book(config, time, people):
+def book(config, time, people, browser):
     browser.get(config["url"])
     # First click on the sport
     try:
@@ -103,7 +104,7 @@ def book(config, time, people):
                     phonenumber.send_keys(config["phoneNum"])
                     email = browser.find_element(By.NAME, "Email")
                     email.send_keys(config["emailAddr"])
-                    name = browser.find_element(By.NAME, "field2021")
+                    name =browser.find_element(By.XPATH, "//input[contains(@id,'field')]")
                     name.send_keys(config["name"])
                     submit = browser.find_element(By.ID, "submit-btn")
                     submit.click()
@@ -116,14 +117,11 @@ def book(config, time, people):
                             submit.click()
                     except:
                         pass
-                    # wait for the email to come in
-                    verification = "fail"
-                    while verification == "fail":
-                        verification = readEmail(config)
-                    verificationBox = browser.find_element(By.ID, "code")
-                    verificationBox.send_keys(str(verification))
-                    submit = browser.find_element(By.CLASS_NAME, "mdc-button")
-                    submit.click()
+                    # wait the other worker to click the verification link
+                    # Check if the verification link is clicked by checking if the page is redirected to the booking page
+                    current_url = browser.current_url
+                    while browser.current_url == current_url:
+                        t.sleep(1)
                     submit = browser.find_element(By.ID, "submit-btn")
                     submit.click()
                     # Check if the booking is successful by checking if there is a confirmation message displayed
@@ -138,9 +136,58 @@ def book(config, time, people):
     # No slots available
     return 0
 
+def testPeoplePerSlot(config):
+    browser = webdriver.Chrome()
+    browser.get(config["url"])
+    people = 2
+    try:
+        elements = browser.find_elements(By.CLASS_NAME, "content")
+        for element in elements:
+            if element.get_attribute("innerHTML") == config["sport"]:
+                element.click()
+                break
+    except:
+        print("No sport found in this Sportplex")
+        return -1
+    try: 
+        numPeople = browser.find_element(By.ID, "reservationCount")
+        numPeople.clear()
+        numPeople.send_keys(str(people))
+        submit = browser.find_element(By.ID, "submit-btn")
+        submit.click()
+    except:
+        people = 1
+    browser.quit()
+    return people
 
+def booking_worker(config, time, people):
+    # Create a new browser instance
+    browser = webdriver.Chrome()
+    result = book(config, time, people, browser)
+    while(result == 0):
+        print("No slots available, trying again...")
+        result = book(config, time, people, browser)
+    if result > 0:
+        print(f'Booking {config["sport"]} on {config["day"]} at {time} for {result} people was successful')
+    else:
+        print(f'Booking {config["sport"]} on {config["day"]} at {time} failed')
+    browser.quit()
+    return result
+
+def verify_worker(config, numLinks):
+    # Create a new browser instance
+    browser = webdriver.Chrome()
+    while numLinks > 0:
+        verificationLink = readEmail(config)
+        while verificationLink == "fail":
+            verificationLink = readEmail(config)
+        result = verifyEmail(verificationLink, browser)
+        numLinks -= result
+    browser.quit()
+    return
 
 def foo(config):
+    ChromeDriverManager().install()
     # Check if config file exists, if is, read from it
     config_file = "./config.json"  # Replace with the actual path to your config file
     if os.path.isfile(config_file):
@@ -153,25 +200,24 @@ def foo(config):
         print("Clearing emails...")
     print(f"Booking {config["totalPeople"]} people for {config["sport"]} on {config["day"]} at {config["timeSlots"]}")
     totalPeople = config["totalPeople"]
-    while totalPeople > 0:
-        if totalPeople >= 2:
-            numPeople = 2
-        else:
-            numPeople = 1
-        for time in config["timeSlots"]:
-            result = book(config, time, numPeople)
-            while(result == 0):
-                print("No slots available, trying again...")
-                result = book(config, time, numPeople)
-            if result > 0:
-                print(f'Booking {config["sport"]} on {config["day"]} at {time} for {result} people was successful')
-                totalPeople -= result
-            else:
-                print(f'Booking {config["sport"]} on {config["day"]} at {time} failed')
+    #totalPeoplePerSlot = testPeoplePerSlot(config)
+    totalPeoplePerSlot = 2
+    numWorkers = len(config["timeSlots"])*(totalPeople//totalPeoplePerSlot + totalPeople%totalPeoplePerSlot) + 1
+    # Create a thread pool executor
+    with concurrent.futures.ThreadPoolExecutor(max_workers=numWorkers) as executor:
+        # Submit the booking tasks to the executor
+        while totalPeople > 0:
+            numPeople = min(totalPeople, totalPeoplePerSlot)
+            for time in config["timeSlots"]:
+                booking_futures = [executor.submit(booking_worker, config, time, numPeople) for _ in range(numPeople//totalPeoplePerSlot)]
+                totalPeople -= numPeople
+        # Submit the verification tasks to the executor
+        booking_futures.append(executor.submit(verify_worker, config, numWorkers - 1))
+        # Wait for all the booking tasks to complete
+        concurrent.futures.wait(booking_futures)
+
     print("Cancel your bookings here: https://reservation.frontdesksuite.ca/rcfs/cancel")
-    print("Done! Quitting in 5 seconds...")
     t.sleep(5)
-    browser.quit()
-    input("Press Enter to exit...")
+    input("All Booked. Press Enter to exit...")
 
 foo(config)
