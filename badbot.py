@@ -1,6 +1,7 @@
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.chrome.options import Options 
 from selenium.webdriver.common.by import By
 import email
 import imaplib
@@ -8,7 +9,6 @@ import os
 import json
 import time as t
 import concurrent.futures
-from concurrent.futures import ProcessPoolExecutor
 # Default values, change if needed
 config = {
     "url": "https://reservation.frontdesksuite.ca/rcfs/nepeansportsplex/Home/Index?Culture=en&PageId=b0d362a1-ba36-42ae-b1e0-feefaf43fe4c&ShouldStartReserveTimeFlow=False&ButtonId=00000000-0000-0000-0000-000000000000",
@@ -20,7 +20,8 @@ config = {
     "sport": "Badminton",
     "day": "Wednesday",
     "timeSlots": ["7:00 AM"],
-    "totalPeople": 2
+    "totalPeople": 2,
+    "runHeadless": True
 }
 
 def readEmail(config): 
@@ -57,11 +58,8 @@ def readEmail(config):
 def verifyEmail(verificationLink, browser):
     browser.get(verificationLink)
     try:
-        confirmMessage = browser.find_element(By.CLASS_NAME, "content").find_element(By.TAG_NAME,"label").get_attribute("innerHTML")
-        if confirmMessage.find("Your contact information has now been confirmed.") != -1:
-            return 1
-        else:
-            return 0
+        browser.find_element(By.CLASS_NAME, "content").find_element(By.TAG_NAME,"label").get_attribute("innerHTML")
+        return 1
     except:
         return 0
 
@@ -77,6 +75,7 @@ def book(config, time, people, browser):
     except:
         print("No sport found in this Sportplex")
         return -1
+    # print("Sport selected")
     #Some sportsplexes require you to select the number of people before selecting the sport
     try: 
         numPeople = browser.find_element(By.ID, "reservationCount")
@@ -92,13 +91,15 @@ def book(config, time, people, browser):
     for element in elements:
         text = element.get_attribute("innerHTML")
         if config["day"] in text:
+            # print("Day selected")
             element.click()
             elements = browser.find_elements(By.CLASS_NAME, "available-time")
             for element in elements:
                 text = element.get_attribute("innerHTML")
                 if time in text:
-                    parent = element.find_element(By.XPATH, "./..")
-                    parent.click()
+                    # print("Time selected")
+                    parent = element.find_element(By.XPATH, "..")
+                    browser.execute_script(parent.get_attribute("onclick"))
                     #info page
                     phonenumber = browser.find_element(By.NAME, "PhoneNumber")
                     phonenumber.send_keys(config["phoneNum"])
@@ -106,6 +107,7 @@ def book(config, time, people, browser):
                     email.send_keys(config["emailAddr"])
                     name =browser.find_element(By.XPATH, "//input[contains(@id,'field')]")
                     name.send_keys(config["name"])
+                    # print("Info filled")
                     submit = browser.find_element(By.ID, "submit-btn")
                     submit.click()
                     try:
@@ -115,8 +117,10 @@ def book(config, time, people, browser):
                             t.sleep(0.5)
                             submit = browser.find_element(By.ID, "submit-btn")
                             submit.click()
+                            # print("Retrying Submit")
                     except:
                         pass
+                    print("Submitted, waiting for email")
                     # wait the other worker to click the verification link
                     # Check if the verification link is clicked by checking if the page is redirected to the booking page
                     current_url = browser.current_url
@@ -124,6 +128,7 @@ def book(config, time, people, browser):
                         t.sleep(1)
                     submit = browser.find_element(By.ID, "submit-btn")
                     submit.click()
+                    print("Confirm clicked")
                     # Check if the booking is successful by checking if there is a confirmation message displayed
                     try:
                         confirmation_message = browser.find_element(By.CLASS_NAME, "main-content").find_element(By.CLASS_NAME,"section").find_element(By.TAG_NAME, "h1").get_attribute("innerHTML")
@@ -137,7 +142,10 @@ def book(config, time, people, browser):
     return 0
 
 def testPeoplePerSlot(config):
-    browser = webdriver.Chrome()
+    options = Options()
+    if config["runHeadless"]:
+        options.add_argument("--headless")
+    browser = webdriver.Chrome(options=options)
     browser.get(config["url"])
     people = 2
     try:
@@ -162,7 +170,10 @@ def testPeoplePerSlot(config):
 
 def booking_worker(config, time, people):
     # Create a new browser instance
-    browser = webdriver.Chrome()
+    options = Options()
+    if config["runHeadless"]:
+        options.add_argument("--headless")
+    browser = webdriver.Chrome(options=options)
     result = book(config, time, people, browser)
     while(result == 0):
         print("No slots available, trying again...")
@@ -176,12 +187,16 @@ def booking_worker(config, time, people):
 
 def verify_worker(config, numLinks):
     # Create a new browser instance
-    browser = webdriver.Chrome()
+    options = Options()
+    if config["runHeadless"]:
+        options.add_argument("--headless")
+    browser = webdriver.Chrome(options=options)
     while numLinks > 0:
         verificationLink = readEmail(config)
         while verificationLink == "fail":
             verificationLink = readEmail(config)
         result = verifyEmail(verificationLink, browser)
+        print(f"Verified for {result} bookings")
         numLinks -= result
     browser.quit()
     return
