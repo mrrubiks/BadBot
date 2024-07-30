@@ -27,7 +27,7 @@ All the configuration this bot needs is in the config.json it has the following 
 
 ## Use auto verification
 It's recommended when you already know how to setup imap access of your email.
-**Auto verification will be enabled when IMAPDomain and password is provided in the json file and the information is correct.**
+**Auto verification will be enabled when IMAPDomain and password are provided in the json file and the information is correct.**
 It will show a message in the console when email server is connected and confirm the auto verification is working.
 When auto verification is enabled it will automatically go through your email inbox and click on the verification links.
 When auto verification is not enabled **you need** to check your email and click on all the links you received. Once all the links are clicked, the bookings will be finalized and the script will close all the browsers.
