@@ -59,7 +59,7 @@ def book(config, time, people, browser):
     try:
         elements = browser.find_elements(By.CLASS_NAME, "content")
         for element in elements:
-            if element.get_attribute("innerHTML") == config["sport"]:
+            if element.get_attribute("innerHTML").lower() == config["sport"].lower():
                 element.click()
                 break
     except:
