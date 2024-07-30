@@ -9,26 +9,16 @@ import os
 import json
 import time as t
 import concurrent.futures
-# Default values, change if needed
-config = {
-    "url": "https://reservation.frontdesksuite.ca/rcfs/nepeansportsplex/Home/Index?Culture=en&PageId=b0d362a1-ba36-42ae-b1e0-feefaf43fe4c&ShouldStartReserveTimeFlow=False&ButtonId=00000000-0000-0000-0000-000000000000",
-    "phoneNum": "6470000000",
-    "emailAddr": "email@gmail.com",
-    "IMAPDomain": "imap.gmail.com",
-    "password": "psw",
-    "name": "Your Name in the Booking System",
-    "sport": "Badminton",
-    "day": "Wednesday",
-    "timeSlots": ["7:00 AM"],
-    "totalPeople": 2,
-    "runHeadless": True
-}
 
 def readEmail(config): 
     #Read email and return verification link
     # Connect to the IMAP server
     imap_server = imaplib.IMAP4_SSL(config["IMAPDomain"])
-    imap_server.login(config["emailAddr"], config["password"])
+    try:
+        imap_server.login(config["emailAddr"], config["password"])
+    except:
+        print("Failed to login to email server")
+        return "wrong password"
 
     # Select the mailbox (e.g., INBOX)
     imap_server.select("INBOX")
@@ -90,13 +80,13 @@ def book(config, time, people, browser):
     elements = browser.find_elements(By.CLASS_NAME, "header-text")
     for element in elements:
         text = element.get_attribute("innerHTML")
-        if config["day"] in text:
+        if config["day"].lower() in text.lower():
             # print("Day selected")
             element.click()
             elements = browser.find_elements(By.CLASS_NAME, "available-time")
             for element in elements:
                 text = element.get_attribute("innerHTML")
-                if time in text:
+                if time.lower().replace(" ","") in text.lower().replace(" ",""):
                     # print("Time selected")
                     parent = element.find_element(By.XPATH, "..")
                     browser.execute_script(parent.get_attribute("onclick"))
@@ -120,7 +110,11 @@ def book(config, time, people, browser):
                             # print("Retrying Submit")
                     except:
                         pass
-                    print("Submitted, waiting for email")
+                    if config["autoVerify"]:
+                        print("Submitted, waiting for email")
+                    else:
+                        print("Submitted, please check your email and click on the verification link")
+                        print("The booking will be confirmed moments after the verification link is clicked")
                     # wait the other worker to click the verification link
                     # Check if the verification link is clicked by checking if the page is redirected to the booking page
                     current_url = browser.current_url
@@ -202,18 +196,56 @@ def verify_worker(config, numLinks):
     browser.quit()
     return
 
-def foo(config):
-    ChromeDriverManager().install()
-    # Check if config file exists, if is, read from it
+def checkConfig(config):
+    # Check if the config file exists, if is, read from it
     config_file = "./config.json"  # Replace with the actual path to your config file
     if os.path.isfile(config_file):
         # Read from the config file
         with open(config_file, "r") as file:
             config = json.load(file)
-    else:
-        print("Config file not found, using default values!")
-    while readEmail(config) != "fail":
-        print("Clearing emails...")
+            if config["totalPeople"] <= 0:
+                print("Invalid number of people")
+                return
+            if not config["day"].lower() in ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]:
+                print("Invalid day")
+                return
+    else: #Terminate
+        print("Config file not found, create a config file and try again")
+        return
+    autoVerify = "password" in config and "emailAddr" in config and "IMAPDomain" in config and config["IMAPDomain"] != "" and config["emailAddr"] != "" and config["password"] != ""
+    config["autoVerify"] = autoVerify
+    if not autoVerify:
+        print("Auto verification disabled, please verify your bookings manually")
+    if autoVerify:
+        while readEmail(config) != "fail":
+            if readEmail(config) == "wrong password":
+                print("Email login failed, using manual verification!")
+                autoVerify = False
+                config["autoVerify"] = False
+                break
+            print("Clearing emails...")
+        print("Email server is connected, auto verification is enabled!")
+    return config
+
+def foo():
+    ChromeDriverManager().install()
+    # Check if config file exists, if is, read from it
+    config_file = "./config.json"  # Replace with the actual path to your config file
+    config = checkConfig(config_file)
+    if config == None:
+        return
+    autoVerify = config["autoVerify"]
+    if not autoVerify:
+        print("Auto verification is disabled, please verify your bookings manually")
+    if autoVerify:
+        while readEmail(config) != "fail":
+            if readEmail(config) == "wrong password":
+                print("Email login failed, using manual verification!")
+                autoVerify = False
+                config["autoVerify"] = False
+                break
+            print("Clearing emails...")
+        print("Auto verification enabled")
     print(f"Booking {config["totalPeople"]} people for {config["sport"]} on {config["day"]} at {config["timeSlots"]}")
     totalPeople = config["totalPeople"]
     #totalPeoplePerSlot = testPeoplePerSlot(config)
@@ -227,12 +259,13 @@ def foo(config):
             for time in config["timeSlots"]:
                 booking_futures = [executor.submit(booking_worker, config, time, numPeople) for _ in range(numPeople//totalPeoplePerSlot +  numPeople%totalPeoplePerSlot)]
             totalPeople -= numPeople
-        # Submit the verification tasks to the executor
-        booking_futures.append(executor.submit(verify_worker, config, numWorkers - 1))
+        if autoVerify:
+            # Submit the verification tasks to the executor
+            booking_futures.append(executor.submit(verify_worker, config, numWorkers - 1))
         # Wait for all the booking tasks to complete
         concurrent.futures.wait(booking_futures)
 
     print("Cancel your bookings here: https://reservation.frontdesksuite.ca/rcfs/cancel")
     input("All Booked. Press Enter to exit...")
 
-foo(config)
+foo()
